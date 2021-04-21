@@ -19,17 +19,18 @@ The sensor has 3 wires :
 
 It needs no additional hardware but for safety I put a 10K resistor between the sensor and my GPIO.
 
-The plugin creates 3 Monitors :
+The plugin creates 4 Monitors :
 
  - 1 for your water meter showing your meter value
  - 1 for a date like Januari 1st showing the usage since that date
  - 1 for a date like last payment showing the usage since that date
+ - 1 for the current usage in l/m
 
 The main page of the plugin is used to
 
  - select the GPIO of the sensor
- - setup the names of the 3 monitors
- - setup the initial values of the 3 monitors
+ - setup the names of the first 3 monitors
+ - setup the initial values of the first 3 monitors
  - change the dates and values of the 2 'usage since' monitors
  - help you when you replace your water meter ( starts with a new value like 0 )
 
@@ -49,5 +50,6 @@ When you do not like the Type name 'Jacks Water Meter' feel free to edit plugin.
 
 To get your water meter and other data on Toon 1 or Toon 2 you may use my app https://github.com/JackV2020/Toon-Domoticz-MonitorCS. 
 
+There is also a very nice app available in the Toon store : ToonWater by oepi-loepi 
 
 Thanks for reading and enjoy.
