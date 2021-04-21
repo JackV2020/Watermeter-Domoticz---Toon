@@ -15,7 +15,7 @@ The sensor has 3 wires :
 
  - brown + 5V
  - blue  - 
- - black GPIO ( my default is 27 because 3^3=27, or maybe because it was free ;) )
+ - black GPIO ( my default is 27 because 3^3=27, or maybe because it was free 8-) )
 
 It needs no additional hardware but for safety I put a 10K resistor between the sensor and my GPIO.
 
@@ -33,9 +33,9 @@ The main page of the plugin is used to
  - change the dates and values of the 2 'usage since' monitors
  - help you when you replace your water meter ( starts with a new value like 0 )
 
-Updates are done by a routine in the plugin itself which is triggered by the sensor.
+Updates are done by an interrupt routine in the plugin itself which is triggered by the sensor.
 
-To install or update the plugin you need to get the contents of the zip file watermeter.zip
+To install or update the plugin you need to get the contents of the zip file watermeter.zip.
 
 On a Raspberry Pi you could :
 
