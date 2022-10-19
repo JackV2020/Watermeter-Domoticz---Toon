@@ -55,7 +55,7 @@ To get it into Domoticz restart your domoticz like :
 
 After this you can add a device of the Type 'Jacks Water Meter'.
 
-To get your water meter and other data on a rooted Toon 1 or Toon 2 you may use my app https://github.com/JackV2020/Toon-Domoticz-MonitorCS. 
+To get your water meter and other data on a rooted Toon 1 or Toon 2 you may use my Toon APP 'Domoticz Monitor'  https://github.com/JackV2020/domoMon  
 
 There is also a very nice app available in the Toon store : ToonWater by oepi-loepi.
 
