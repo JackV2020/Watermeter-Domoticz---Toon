@@ -18,6 +18,7 @@ The main page of the plugin is used to
  - help info on what to do when you replace your water meter ( which starts with a new value like 0 )
 
 No polling is done by the plugin because updates are done by an interrupt routine in the plugin which is triggered by the sensor.
+This interrupt routine is implemented in the script watermeter.sh which is startd by the plugin by calling spawn_bash.sh
 
 Below you find info on :
 
@@ -44,10 +45,6 @@ On a Raspberry Pi you could :
 Start a terminal and go to your plugins folder and the next will get it for you into a watermeter folder : 
 
  ....../plugins$ git clone https://github.com/JackV2020/Watermeter-Domoticz---Toon.git watermeter
-
-later when you want to check for updates you go into the folder and issue git pull :
-
- ....../plugins/watermeter$ git pull
 
 To get it into Domoticz restart your domoticz like :
 

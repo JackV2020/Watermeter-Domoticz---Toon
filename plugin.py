@@ -1,4 +1,9 @@
 #
+# Changelog:
+#
+# version 2.0.0 : Changed for new Domoticz API
+# version 1.0.0 : initial version
+#
 # 
 #    3V3  (1) (2)  5V    
 #  GPIO2  (3) (4)  5V    
@@ -23,7 +28,7 @@
 #
 
 """
-<plugin key="JacksWaterMeter" name="Jacks Water Meter" author="Jack Veraart" version="1.1">
+<plugin key="JacksWaterMeter" name="Jacks Water Meter" author="Jack Veraart" version="2.0.0">
     <description>
         <font size="4" color="white">Water Meter</font><font color="white">...Notes...</font>
         <ul style="list-style-type:square">
@@ -104,9 +109,9 @@
 
         <param field="Mode5" label="Date 2 m³."         width="120px" default="1.234"/>
 
-        <param field="Username" label="Username."       width="120px" default="view"/>
+        <param field="Username" label="Username."       width="120px" default="admin"/>
 
-        <param field="Password" label="Password."       width="120px" default="view" password="true"/>
+        <param field="Password" label="Password."       width="120px" default="domoticz" password="true"/>
 
         <param field="Mode6" label="Debug."             width="75px">
             <options>
@@ -128,7 +133,8 @@ HomeFolder=''
 ImageDictionary={}
 
 HeartbeatInterval= 10   # 10 seconds
-HeartbeatCountMax= 30   # 30 * Heartbeat = 300 seconds is 5 minutes, not too low to refresh Monitors with own values to avoid time outs and keep nice graphs
+#HeartbeatCountMax= 30   # 30 * Heartbeat = 300 seconds is 5 minutes, not too low to refresh Monitors with own values to avoid time outs and keep nice graphs
+HeartbeatCountMax= 2   # 2 * Heartbeat = 20, not too low to refresh Monitors with own values to avoid time outs and keep nice graphs
 HeartbeatCounter =  1   # counts down from Max to 1 before actual refresh; start with 1 which forces an immediate refresh after startup
 
 # lock mechanism parameters onHeartbeat and WaterTrigger ( they are not allowed to update monitors at same time ;-)
@@ -139,8 +145,6 @@ WaterTriggerLock=0
 IPPort=0        # plugin finds right value
 
 GPIOpin=0       # plugin finds right value
-Username=''     # plugin finds right value
-Password=''     # plugin finds right value
 LocalHostInfo=''
 
 Water_id=1
@@ -169,8 +173,6 @@ class BasePlugin:
         
         global HeartbeatInterval
         global HomeFolder
-        global Username
-        global Password
         global GPIOpin
         global WaterDate1Value
         global WaterDate2Value
@@ -192,6 +194,7 @@ class BasePlugin:
 #
 # Set some globals variables to right values
 #            
+            RoomName        =str(Parameters['Name'])
             HomeFolder      =str(Parameters["HomeFolder"])
             Username        =str(Parameters["Username"])
             Password        =str(Parameters["Password"])
@@ -203,43 +206,76 @@ class BasePlugin:
             WaterDate2Name  =str(Parameters["Mode4"])
             WaterDate2Value =float(Parameters["Mode5"])
 
-            MyIPPort=GetDomoticzPort()            
+            LocalHostInfo     = "https://"+Username+":"+Password+"@"+GetDomoticzIP()+":"+GetDomoticzHTTPSPort()
 
-            LocalHostInfo='http://'+Username+':'+Password+'@localhost:'+MyIPPort
+            StartupOK = ImportImages()
 
-            ImportImages()
+            if StartupOK == 1:
+
 
 # Create Monitors / Update Monitor Names
 
-            CreateDevice(Water_id,WaterName,"Custom",'Water','Water Meter Start : '+str(CreateValue)+' m³','m³',CreateValue)
+                CreateDevice(Water_id,WaterName,"Custom",'Water','Water Meter Start : '+str(CreateValue)+' m³','m³',CreateValue)
 
-            if Parameters["SerialPort"] == "ForceMeterValue" :
-                Domoticz.Log("Force Meter Value to : " + str(CreateValue) )
-                Devices[Water_id].Update( nValue=0, sValue=str(CreateValue) )
-                
+                if Parameters["SerialPort"] == "ForceMeterValue" :
+                    Domoticz.Log("Force Meter Value to : " + str(CreateValue) )
+                    Devices[Water_id].Update( nValue=0, sValue=str(CreateValue) )
+                    
 
-            CreateDevice(WaterDate1_id,WaterDate1Name,"Custom",'Water','Water Meter : '+str(WaterDate1Value)+' m³','m³',CreateValue-WaterDate1Value)
+                CreateDevice(WaterDate1_id,WaterDate1Name,"Custom",'Water','Water Meter : '+str(WaterDate1Value)+' m³','m³',CreateValue-WaterDate1Value)
 
-            CreateDevice(WaterDate2_id,WaterDate2Name,"Custom",'Water','Water Meter : '+str(WaterDate2Value)+' m³','m³',CreateValue-WaterDate2Value)
+                CreateDevice(WaterDate2_id,WaterDate2Name,"Custom",'Water','Water Meter : '+str(WaterDate2Value)+' m³','m³',CreateValue-WaterDate2Value)
 
 #def CreateDevice(deviceunit,devicename,devicetype,devicelogo="",devicedescription="",sAxis="",InitialValue=0.0):
 
-            CreateDevice(WaterUsage_id,"Water","Custom",'Water','Water Meter Liters / minute','l/min',0.0)
-            
+                CreateDevice(WaterUsage_id,"Water","Custom",'Water','Water Meter Liters / minute','l/min',0.0)
+#
+# (Re-)Create Room
+#
+                Recreate=False
+                RoomIdx=CreateRoom( RoomName, Recreate)
+                if (RoomIdx == 0):
+                    StartupOK = 0
+#
+# Add all items from configuration file to Room if not already in
+#
+# Note that the order in the config file determines the order in the room
+#
+                if (StartupOK == 1):
+
+                    Domoticz.Log('CreateDevices put devices in room')
+
+                    Addition = AddToRoom(RoomIdx,Devices[Water_id].ID)
+                    if (Addition == 0):
+                        StartupOK = 0
+                    Addition = AddToRoom(RoomIdx,Devices[WaterDate1_id].ID)
+                    if (Addition == 0):
+                        StartupOK = 0
+                    Addition = AddToRoom(RoomIdx,Devices[WaterDate2_id].ID)
+                    if (Addition == 0):
+                        StartupOK = 0
+                    Addition = AddToRoom(RoomIdx,Devices[WaterUsage_id].ID)
+                    if (Addition == 0):
+                        StartupOK = 0
+                
+                if (StartupOK == 1):
 # Setup GPIO
 
-            GPIOSetupStatus = GPIOSetup('Start')
+#            GPIOSetupStatus = GPIOSetup('Start')
+                    StartShellProcess()
+                    GPIOSetupStatus = 1
 
-            if GPIOSetupStatus == 1:
+                    if GPIOSetupStatus == 1:
 
 # Setup was fine so enable onHeartbeat function
-                            
-                Domoticz.Heartbeat(HeartbeatInterval)
+                                
+                        Domoticz.Heartbeat(HeartbeatInterval)
 
-                StartupOK = 1
-                
+            if (StartupOK == 1):
                 Domoticz.Debug('onStartup OK')
-            
+            else:
+                Domoticz.Log('ERROR starting up')
+                
         except:
 
             StartupOK = 0
@@ -253,7 +289,8 @@ class BasePlugin:
 
 # Setup GPIO
 
-        GPIOSetupStatus = GPIOSetup('Stop')
+#        GPIOSetupStatus = GPIOSetup('Stop')
+        StopShellProcess()
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -282,7 +319,7 @@ class BasePlugin:
         
         if StartupOK == 1:
             
-            Domoticz.Debug("onHeartbeat called "+str(HeartbeatCounter))
+#            Domoticz.Log("onHeartbeat called "+str(HeartbeatCounter))
 
             if HeartbeatCounter == 1:
 
@@ -292,10 +329,11 @@ class BasePlugin:
                 
                     Domoticz.Debug('Refresh Water Meter Monitors')
 
-                    Devices[Water_id].Update(  nValue=0, sValue=Devices[Water_id].sValue)
+                    Devices[Water_id].Update(     nValue=0, sValue=Devices[Water_id].sValue)
                     Devices[WaterDate1_id].Update(nValue=0, sValue=str(    round(float(Devices[Water_id].sValue) - WaterDate1Value, 3)    ) )
                     Devices[WaterDate2_id].Update(nValue=0, sValue=str(    round(float(Devices[Water_id].sValue) - WaterDate2Value, 3)    ) )
-                    Devices[WaterUsage_id].Update(nValue=0, sValue='0.0'                                                                    )
+                    Devices[WaterUsage_id].Update(nValue=0, sValue=Devices[WaterUsage_id].sValue)
+#                    Devices[WaterUsage_id].Update(nValue=0, sValue='0.0'                                                                    )
             
                 HeartbeatCounter = HeartbeatCountMax
 
@@ -358,42 +396,85 @@ def DumpConfigToLog():
     return
     
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
-# ----------------------------------------------------  Image Management Routines  -----------------------------------------------------------------------
+# ----------------------------------------------------  Basic Management Routines  -----------------------------------------------------------------------
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
-def GetDomoticzPort():
-
-    global IPPort
-    
-    pathpart=Parameters['HomeFolder'].split('/')[3]
-    searchfile = open("/etc/init.d/"+pathpart+".sh", "r")
-    for line in searchfile:
-        if ("-www" in line) and (line[0:11]=='DAEMON_ARGS'): 
-            IPPort=str(line.split(' ')[2].split('"')[0])
-    searchfile.close()
-    Domoticz.Debug('######### GetDomoticzPort looked in: '+"/etc/init.d/"+pathpart+".sh"+' and found port: '+IPPort)
-    
-    return IPPort
+def GetDomoticzIP():
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        # doesn't even have to be reachable
+        s.connect(('10.255.255.255', 1))
+        IP = s.getsockname()[0]
+    except Exception:
+        IP = '127.0.0.1'
+    finally:
+        s.close()
+    return IP
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 
-def GetImageDictionary(HostInfo):
-#
-# HostInfo : http(s)://user:pwd@somehost.somewhere:port
-#
+def GetDomoticzHTTPSPort():
+
+    try:
+        import subprocess
+    except:
+        Domoticz.Log("python3 is missing module subprocess")
+
+    try:
+        import time
+    except:
+        Domoticz.Log("python3 is missing module time")
+
+    try:
+        Domoticz.Debug('GetDomoticzHTTPSPort check startup file')
+        pathpart=Parameters['HomeFolder'].split('/')[3]
+        searchfile = open("/etc/init.d/"+pathpart+".sh", "r")
+        for line in searchfile:
+            if ("-sslwww" in line) and (line[0:11]=='DAEMON_ARGS'):
+                HTTPSPort=str(line.split(' ')[2].split('"')[0])
+                HTTPSPort = HTTPSPort.replace('\\n','') # remove EOL
+        searchfile.close()
+        Domoticz.Debug('GetDomoticzHTTPSPort looked in: '+"/etc/init.d/"+pathpart+".sh"+' and found port: '+HTTPSPort)
+    except:
+        Domoticz.Debug('GetDomoticzHTTPSPort check running process')
+        command='ps -ef | grep domoticz | grep sslwww | grep -v grep | tr -s " "'
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+
+        timeouts=0
+
+        result = ''
+        while timeouts < 10:
+            p_status = process.wait()
+            output = process.stdout.readline()
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                HTTPSPort=str(output)
+                HTTPSPort = HTTPSPort[HTTPSPort.find('-sslwww'):]
+                HTTPSPort = HTTPSPort[HTTPSPort.find(' ')+1:]
+                HTTPSPort = HTTPSPort[:HTTPSPort.find(' ')]
+                HTTPSPort = HTTPSPort.replace('\\n','') # remove EOL
+            else:
+                time.sleep(0.2)
+                timeouts=timeouts+1
+        Domoticz.Debug('GetDomoticzHTTPSPort looked at running process and found port: '+HTTPSPort)
+
+    return HTTPSPort
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def GetImageDictionary():
+
     import json
     import requests
 
     try:
         mydict={}
 
-        url=HostInfo.split(':')[0]+'://'+HostInfo.split('@')[1]+'/json.htm?type=custom_light_icons'
-        username=HostInfo.split(':')[1][2:]
-        password=HostInfo.split(':')[2].split('@')[0]
+        url=LocalHostInfo+'/json.htm?type=command&param=custom_light_icons'
 
-#        Domoticz.Log('....'+url+'....'+username+'....'+password+'....')
-
-        response=requests.get(url, auth=(username, password))
+        response=requests.get(url, verify=False)
         data = json.loads(response.text)
         for Item in data['result']:
             mydict[str(Item['imageSrc'])]=int(Item['idx'])
@@ -401,8 +482,6 @@ def GetImageDictionary(HostInfo):
     except:
         mydict={}
 
-#    Domoticz.Log(str(mydict))
-    
     return mydict
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -411,28 +490,37 @@ def ImportImages():
 #
 # Import ImagesToImport if not already loaded
 #
-    import glob
+    try :
+        import glob
+    except:
+        Domoticz.Log("python3 is missing module glob")
 
     global ImageDictionary
 
-    ImageDictionary=GetImageDictionary(LocalHostInfo)
-    
+    MyStatus=1
+
+    ImageDictionary=GetImageDictionary()
+
     if ImageDictionary == {}:
-        Domoticz.Log("ERROR I can not access the image library. Please modify the hardware setup to have the right username and password.")      
+        Domoticz.Log("Please modify your setup to have Admin access. (See Hardware setup page of this plugin.)")
+        MyStatus = 0
     else:
 
         for zipfile in glob.glob(HomeFolder+"CustomIcons/*.zip"):
             importfile=zipfile.replace(HomeFolder,'')
             try:
                 Domoticz.Image(importfile).Create()
-                Domoticz.Debug("Imported/Updated icons from "  + importfile)
+                Domoticz.Debug("ImportImages Imported/Updated icons from "  + importfile)
             except:
-                Domoticz.Log("ERROR can not import icons from "  + importfile)
+                MyStatus = 0
+                Domoticz.Log("ImportImages ERROR can not import icons from "  + importfile)
 
-        ImageDictionary=GetImageDictionary(LocalHostInfo)
+        if (MyStatus == 1) :
+            ImageDictionary=GetImageDictionary()
+            Domoticz.Debug('ImportImages Oke')
 
-        Domoticz.Debug('ImportImages: '+str(ImageDictionary))
-         
+    return MyStatus
+
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 # ----------------------------------------------------  Device Creation Routines  ------------------------------------------------------------------------
@@ -485,7 +573,82 @@ def CreateDevice(deviceunit,devicename,devicetype,devicelogo="",devicedescriptio
         Devices[deviceunit].Update(nValue=Devices[deviceunit].nValue, sValue=Devices[deviceunit].sValue, Name=NewName, Options=deviceoptions, Description=devicedescription)
     except:
         dummy=1
+def CreateRoom(RoomName, Recreate):
 
+    try:
+        import json
+    except:
+        Domoticz.Log("python3 is missing module json")
+
+    try:
+        import requests
+    except:
+        Domoticz.Log("python3 is missing module requests")
+
+    idx=0
+
+    try:
+
+        Domoticz.Debug('Check if Room Exists')
+
+        url=LocalHostInfo+'/json.htm?type=command&param=getplans&order=name&used=true'
+        Domoticz.Debug('Check Room '+url)
+        response=requests.get(url, verify=False)
+        data = json.loads(response.text)
+
+        if 'result' in data.keys():
+            for Item in data['result']:
+                if str(Item['Name']) == RoomName:
+                    idx=int(Item['idx'])
+                    Domoticz.Debug('Found Room '+RoomName+' with idx '+str(idx))
+
+        if (idx != 0) and Recreate :
+            url=LocalHostInfo+'/json.htm?idx='+str(idx)+'&param=deleteplan&type=command'
+            Domoticz.Log('Delete Room '+url)
+            response=requests.get(url, verify=False)
+            idx = 0
+
+        if idx == 0 :
+            url=LocalHostInfo+'/json.htm?name='+RoomName+'&param=addplan&type=command'
+            Domoticz.Log('Create Room '+url)
+            response=requests.get(url, verify=False)
+            data = json.loads(response.text)
+            Domoticz.Log('CreateRoom Created Room'+str(data))
+            idx=int(data['idx'])
+    except:
+        Domoticz.Log('ERROR CreateRoom Failed')
+        idx=0
+
+    Domoticz.Debug('CreateRoom status should not be 0 : '+str(idx))
+
+    return idx
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+def AddToRoom(RoomIDX,ItemIDX):
+
+    try:
+        import json
+    except:
+        Domoticz.Log("python3 is missing module json")
+
+    try:
+        import requests
+    except:
+        Domoticz.Log("python3 is missing module requests")
+
+    status=1
+
+    try:
+        url=LocalHostInfo+'/json.htm?activeidx='+str(ItemIDX)+'&activetype=0&idx='+str(RoomIDX)+'&param=addplanactivedevice&type=command'
+        Domoticz.Debug(url)
+        response=requests.get(url, verify=False)
+        data = json.loads(response.text)
+    except:
+        Domoticz.Log('ERROR AddRoom Failed')
+        status=0
+
+    Domoticz.Debug('AddToRoom status should not be 0 : '+str(status))
+
+    return status
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
 # ----------------------------------------------------  Hardware Routines --------------------------------------------------------------------------------
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
@@ -531,8 +694,7 @@ def WaterTrigger(channel):
     import time
     import datetime
 
-    Domoticz.Debug('WaterTrigger called for channel '+str(channel))
-
+#    Domoticz.Debug('WaterTrigger called for channel '+str(channel))
 
     StopTime = datetime.datetime.now()
     
@@ -542,7 +704,7 @@ def WaterTrigger(channel):
 
     LitresPerMinute = str( round(1 / Minutes,2) )
         
-    Domoticz.Debug("Litres / minute : "+LitresPerMinute)
+#    Domoticz.Log("Minutes : "+ str(round(Minutes , 2)) + " Litres / minute : "+LitresPerMinute)
 
     try:
         import RPi.GPIO as GPIO
@@ -554,7 +716,7 @@ def WaterTrigger(channel):
             while onHeartbeatLock == 1:
                 time.sleep(1/10)
 
-            Domoticz.Debug('Add 1 liter :-) from channel '+str(channel))
+#            Domoticz.Debug('Add 1 liter :-) from channel '+str(channel))
 
             Devices[Water_id].Update(     nValue=0, sValue=str(    round(float(Devices[Water_id].sValue) + 0.001,3)               ) )
             Devices[WaterDate1_id].Update(nValue=0, sValue=str(    round(float(Devices[Water_id].sValue) - WaterDate1Value, 3)    ) )
@@ -564,7 +726,104 @@ def WaterTrigger(channel):
             WaterTriggerLock=0
 
     except:
-        
-        Domoticz.Log('WaterTrigger can not update for channel '+str(channel))
+        dummy = 1
+#        Domoticz.Log('WaterTrigger can not update for channel '+str(channel))
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def StartShellProcess():
+
+#GPIOpin
+
+#Water_id=1
+
+#WaterDate1_id=2
+#WaterDate1Value=0.0 # plugin finds right value
+
+#WaterDate2_id=3
+#WaterDate2Value=0.0 # plugin finds right value
+
+#WaterUsage_id=4
+
+    import subprocess
+    import shlex
+    import time
+
+    command = HomeFolder + 'spawn_bash.sh watermeter.sh'
+    command = command + ' '  + str(GPIOpin)
+    command = command + ' '  + str(Devices[Water_id].ID)
+    command = command + ' '  + str(Devices[WaterDate1_id].ID)
+    command = command + ' '  + str(Devices[WaterDate2_id].ID)
+    command = command + ' '  + str(Devices[WaterUsage_id].ID)
+
+    Domoticz.Log(command)
+
+    if 1 == 1 :
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+
+        timeouts=0
+
+        result = ''
+        while timeouts < 10:
+            p_status = process.wait()
+#            Domoticz.Log('Command: '+command)
+            output = process.stdout.readline()
+#            Domoticz.Log('Output: '+str(output))
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                result=str(output.strip())
+                timeouts=10
+            else:
+                time.sleep(0.2)
+                timeouts=timeouts+1
+
+    return
+
+# --------------------------------------------------------------------------------------------------------------------------------------------------------
+
+def StopShellProcess():
+
+#GPIOpin
+
+#Water_id=1
+
+#WaterDate1_id=2
+#WaterDate1Value=0.0 # plugin finds right value
+
+#WaterDate2_id=3
+#WaterDate2Value=0.0 # plugin finds right value
+
+#WaterUsage_id=4
+
+    import subprocess
+    import shlex
+    import time
+
+    command = '/usr/bin/killall -9 inotifywait ; sleep 2; /usr/bin/killall -9 watermeter.sh'
+
+    Domoticz.Log(command)
+
+    if 1 == 1 :
+        process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+
+        timeouts=0
+
+        result = ''
+        while timeouts < 10:
+            p_status = process.wait()
+#            Domoticz.Log('Command: '+command)
+            output = process.stdout.readline()
+#            Domoticz.Log('Output: '+str(output))
+            if output == '' and process.poll() is not None:
+                break
+            if output:
+                result=str(output.strip())
+                timeouts=10
+            else:
+                time.sleep(0.2)
+                timeouts=timeouts+1
+
+    return
 
 # --------------------------------------------------------------------------------------------------------------------------------------------------------
